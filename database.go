@@ -74,7 +74,7 @@ func initializeDatabase(ctx context.Context, driver, dsn string) (err error) {
 
 	switch driver {
 	case "postgres", "postgresql":
-		tx.ExecContext(ctx, `create table if not exists versions
+		_, err = tx.ExecContext(ctx, `create table if not exists versions
 		(
 		  id             varchar(20) not null unique,
 		  created        timestamp with time zone default now(),
@@ -85,8 +85,14 @@ func initializeDatabase(ctx context.Context, driver, dsn string) (err error) {
 		  version_value  varchar(20) not null,
 		  primary key (id)
 		)`)
+		if err != nil {
+			break
+		}
+		_, err = tx.ExecContext(ctx, `create index if not exists version_query 
+		on versions 
+		using btree(namespace, repo_id, version_type)`)
 	case "sqlite":
-		tx.ExecContext(ctx, `create table if not exists versions
+		_, err = tx.ExecContext(ctx, `create table if not exists versions
 		(
 		  id             text not null unique,
 		  created        datetime,
@@ -97,10 +103,10 @@ func initializeDatabase(ctx context.Context, driver, dsn string) (err error) {
 		  version_value  text not null
 		)`)
 	default:
-		return fmt.Errorf(`driver %s is not supported`, driver)
+		err = fmt.Errorf(`driver %s is not supported`, driver)
 	}
 
-	return nil
+	return err
 }
 
 func findVersion(namespace, repoId, typ string) (VersionEntity, error) {
