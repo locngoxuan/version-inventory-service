@@ -29,7 +29,7 @@ steps:
     image: plugins/docker
     settings:
       dockerfile: Dockerfile
-      repo: xuanloc0511/drone-plugin-docker
+      repo: xuanloc0511/version-inventory
       tags: [ "1.0.0", "latest"]
       username:
         from_secret: docker_username
