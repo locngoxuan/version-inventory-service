@@ -26,6 +26,9 @@ const (
 	versionNightly     = "nightly"
 	versionDevelopment = "development"
 	versionPatch       = "patch"
+
+	statusCommitted = "committed"
+	statusRollback  = "rollback"
 )
 
 var vTyps = map[string]struct{}{
@@ -89,8 +92,10 @@ func initializeDatabase(ctx context.Context, driver, dsn string) (err error) {
 			break
 		}
 		_, err = tx.ExecContext(ctx, `create index if not exists version_query 
-		on versions 
-		using btree(namespace, repo_id, version_type)`)
+		on versions using btree(namespace, repo_id, version_type)`)
+		if err != nil {
+			break
+		}
 	case "sqlite":
 		_, err = tx.ExecContext(ctx, `create table if not exists versions
 		(

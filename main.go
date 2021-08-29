@@ -87,8 +87,8 @@ func run(ctx *cli.Context) (err error) {
 
 	r := httprouter.New()
 	r.GET("/api/v1/version", getVersion)
-	r.POST("/api/v1/version/prepare", prepareVersion)
-	r.POST("/api/v1/version/commit", commitVersion)
+	r.POST("/api/v1/version", updateVersion)
+	r.DELETE("/api/v1/version", rollbackVersion)
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", ctx.Int("port.http")),
 		Handler: r,

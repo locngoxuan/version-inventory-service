@@ -17,16 +17,13 @@ type (
 		RepoId        string `json:"repo_id,omitempty"`
 		ReleaseAction string `json:"action,omitempty"`
 		Version       string `json:"version,omitempty"`
-		AutoCommit    bool   `json:"auto_commit,omitempty"`
-	}
-
-	CommitRequest struct {
-		TxId     string `json:"tx_id,omitempty"`
-		Rollback bool   `json:"rollback,omitempty"`
 	}
 )
 
-func prepareVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func rollbackVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+}
+
+func updateVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var request PrepareRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -62,10 +59,7 @@ func prepareVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 		RepoId:    strings.TrimSpace(request.RepoId),
 		Type:      vtype,
 		Value:     strings.TrimSpace(request.Version),
-		Status:    "new",
-	}
-	if request.AutoCommit {
-		entity.Status = "committed"
+		Status:    statusCommitted,
 	}
 	err = xsql.Insert(entity)
 	if err != nil {
@@ -74,36 +68,6 @@ func prepareVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(txId))
-}
-
-func commitVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var request CommitRequest
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		logger.Errorw("failed to decode request", "err", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	txId := strings.TrimSpace(request.TxId)
-	if txId == "" {
-		logger.Error("tx_id is missing")
-		http.Error(w, "missing txId", http.StatusBadRequest)
-		return
-	}
-
-	err = changeStatusToCommitted(txId)
-	if err != nil {
-		if err == xsql.ErrWrongNumberAffectedRow {
-			logger.Errorw("transaction does not exist or was already committed", "tx", txId)
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("OK"))
 }
 
 var colors = map[string]string{
