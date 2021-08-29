@@ -107,19 +107,19 @@ func commitVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) 
 }
 
 var colors = map[string]string{
-	"release": "#2fa84a",
-	"latest":  "#2e4ea2",
-	"nightly": "#8d4bae",
-	"patch":   "#b45853",
+	versionRelease:     "#2fa84a",
+	versionDevelopment: "#2e4ea2",
+	versionNightly:     "#8d4bae",
+	versionPatch:       "#b45853",
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 	versionType := strings.TrimSpace(query.Get("type"))
 	namespace := strings.TrimSpace(query.Get("namespace"))
-	repoKey := strings.TrimSpace(query.Get("repo"))
+	repoKey := strings.ToLower(strings.TrimSpace(query.Get("repo")))
 	if versionType == "" {
-		versionType = "latest"
+		versionType = versionDevelopment
 	}
 
 	if repoKey == "" {
@@ -142,7 +142,7 @@ func getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		value = ver.Value
 	}
 	var buf bytes.Buffer
-	color, ok := colors[strings.ToLower(versionType)]
+	color, ok := colors[versionType]
 	if !ok {
 		color = "#5272B4"
 	}
