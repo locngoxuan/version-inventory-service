@@ -79,7 +79,7 @@ func initializeDatabase(ctx context.Context, driver, dsn string) (err error) {
 	case "postgres", "postgresql":
 		_, err = tx.ExecContext(ctx, `create table if not exists versions
 		(
-		  id             varchar(20) not null unique,
+		  id             varchar(30) not null unique,
 		  created        timestamp with time zone default now(),
 		  status         varchar(10) not null default 'new',
 		  namespace      varchar(255) not null,
@@ -111,6 +111,18 @@ func initializeDatabase(ctx context.Context, driver, dsn string) (err error) {
 		err = fmt.Errorf(`driver %s is not supported`, driver)
 	}
 
+	return err
+}
+
+func deleteVersion(namespace, repoId, typ string) error {
+	_, err := xsql.Delete(xsql.NewStmt(`DELETE FROM versions`).
+		AppendSql(`WHERE namespace = :namespace AND repo_id = :repo AND version_type = :type`).
+		With(map[string]interface{}{
+			"namespace": namespace,
+			"repo":      repoId,
+			"type":      typ,
+		}).
+		Get())
 	return err
 }
 

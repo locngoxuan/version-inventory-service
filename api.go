@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	PrepareRequest struct {
+	VersionRequest struct {
 		Namespace     string `json:"namespace,omitempty"`
 		RepoId        string `json:"repo_id,omitempty"`
 		ReleaseAction string `json:"action,omitempty"`
@@ -21,10 +21,43 @@ type (
 )
 
 func rollbackVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var request VersionRequest
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		logger.Errorw("failed to decode request", "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	vtype := versionDevelopment
+	if v := strings.TrimSpace(request.ReleaseAction); v != "" {
+		vtype = v
+	}
+
+	if _, ok := vTyps[vtype]; !ok {
+		logger.Errorw("action is not supported", "action", vtype)
+		http.Error(w, "wrong version type", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(request.RepoId) == "" ||
+		strings.TrimSpace(request.Namespace) == "" ||
+		strings.TrimSpace(request.Version) == "" {
+		logger.Error("repo_id or version is missing")
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	err = deleteVersion(strings.TrimSpace(request.Namespace), strings.TrimSpace(request.RepoId), vtype)
+	if err != nil {
+		logger.Errorw("failed to put data to database", "err", err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("OK"))
 }
 
 func updateVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var request PrepareRequest
+	var request VersionRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		logger.Errorw("failed to decode request", "err", err)
