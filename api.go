@@ -3,24 +3,26 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/locngoxuan/xsql"
 	"github.com/narqo/go-badge"
-	"go.etcd.io/bbolt"
 )
 
 type (
 	PrepareRequest struct {
+		Namespace     string `json:"namespace,omitempty"`
 		RepoId        string `json:"repo_id,omitempty"`
 		ReleaseAction string `json:"action,omitempty"`
 		Version       string `json:"version,omitempty"`
+		AutoCommit    bool   `json:"auto_commit,omitempty"`
 	}
 
 	CommitRequest struct {
-		TxId string `json:"tx_id,omitempty"`
+		TxId     string `json:"tx_id,omitempty"`
+		Rollback bool   `json:"rollback,omitempty"`
 	}
 )
 
@@ -33,11 +35,19 @@ func prepareVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 		return
 	}
 
-	action := "latest"
+	vtype := versionDevelopment
 	if v := strings.TrimSpace(request.ReleaseAction); v != "" {
-		action = v
+		vtype = v
 	}
+
+	if _, ok := vTyps[vtype]; !ok {
+		logger.Errorw("action is not supported", "action", vtype)
+		http.Error(w, "wrong version type", http.StatusBadRequest)
+		return
+	}
+
 	if strings.TrimSpace(request.RepoId) == "" ||
+		strings.TrimSpace(request.Namespace) == "" ||
 		strings.TrimSpace(request.Version) == "" {
 		logger.Error("repo_id or version is missing")
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -45,21 +55,19 @@ func prepareVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 	}
 
 	txId := NewObjectID().Hex()
-	err = db.Update(func(t *bbolt.Tx) error {
-		b := t.Bucket(bucketTransaction)
-		m := map[string]string{
-			"repo":    strings.TrimSpace(request.RepoId),
-			"action":  action,
-			"version": strings.TrimSpace(request.Version),
-		}
-		bs, err := json.Marshal(m)
-		if err != nil {
-			logger.Errorw("failed to marshal data before put to bucket", "err", err, "data", m)
-			return err
-		}
-		b.Put([]byte(txId), bs)
-		return nil
-	})
+
+	entity := VersionEntity{
+		Id:        txId,
+		Namespace: strings.TrimSpace(request.Namespace),
+		RepoId:    strings.TrimSpace(request.RepoId),
+		Type:      vtype,
+		Value:     strings.TrimSpace(request.Version),
+		Status:    "new",
+	}
+	if request.AutoCommit {
+		entity.Status = "committed"
+	}
+	err = xsql.Insert(entity)
 	if err != nil {
 		logger.Errorw("failed to put data to database", "err", err)
 		return
@@ -84,78 +92,14 @@ func commitVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) 
 		return
 	}
 
-	tx, err := db.Begin(true)
+	err = changeStatusToCommitted(txId)
 	if err != nil {
-		logger.Errorw("failed to start db transaction", "err", err, "tx", txId)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
-	txBucket := tx.Bucket(bucketTransaction)
-	txVal := txBucket.Get([]byte(txId))
-	if txVal == nil || len(txVal) == 0 {
-		logger.Errorw("transaction does not exist or was already committed", "tx", txId)
-		http.Error(w, "transaction does not exist", http.StatusNotFound)
-		return
-	}
-	var txM map[string]string
-	err = json.Unmarshal(txVal, &txM)
-	if err != nil {
-		logger.Errorw("failed to unmarshal transaction content", "data", string(txVal),
-			"err", err, "tx", txId)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	repoId := txM["repo"]
-	action := txM["action"]
-	version := txM["version"]
-
-	vBucket := tx.Bucket(bucketVersion)
-	txVal = vBucket.Get([]byte(repoId))
-	var vM map[string]string
-	if txVal == nil || len(txVal) == 0 {
-		//new records
-		vM = make(map[string]string)
-	} else {
-		err = json.Unmarshal(txVal, &vM)
-		if err != nil {
-			logger.Errorw("faild to unmarshall version content", "data", string(txVal),
-				"err", err, "tx", txId)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		if err == xsql.ErrWrongNumberAffectedRow {
+			logger.Errorw("transaction does not exist or was already committed", "tx", txId)
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-	}
-	vM[action] = version
-	txVal, err = json.Marshal(vM)
-	if err != nil {
-		logger.Errorw("failed to marshal version content", "data", fmt.Sprintf("%v", vM),
-			"err", err, "tx", txId)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	err = vBucket.Put([]byte(repoId), txVal)
-	if err != nil {
-		logger.Errorw("faild to put version content to database", "err", err, "tx", txId)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	err = txBucket.Delete([]byte(txId))
-	if err != nil {
-		logger.Errorw("failed to delete transaction record", "err", err, "tx", txId)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		logger.Errorw("failed to commit transaction", "err", err, "tx", txId)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -171,7 +115,8 @@ var colors = map[string]string{
 
 func getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
-	versionType := strings.TrimSpace(query.Get("version_type"))
+	versionType := strings.TrimSpace(query.Get("type"))
+	namespace := strings.TrimSpace(query.Get("namespace"))
 	repoKey := strings.TrimSpace(query.Get("repo"))
 	if versionType == "" {
 		versionType = "latest"
@@ -183,27 +128,18 @@ func getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	}
 
 	value := "n/a"
-	err := db.View(func(t *bbolt.Tx) error {
-		b := t.Bucket(bucketVersion)
-		data := b.Get([]byte(repoKey))
-		if data == nil || len(data) == 0 {
-			return nil
-		}
-		var m map[string]string
-		err := json.Unmarshal(data, &m)
-		if err != nil {
-			return err
-		}
-		v, ok := m[versionType]
-		if !ok {
-			return nil
-		}
-		value = strings.TrimSpace(v)
-		return nil
-	})
+	ver, err := findVersion(namespace, repoKey, versionType)
 	if err != nil {
-		logger.Warnw("failed to load version information", "err", err, "repo", repoKey,
-			"version_type", versionType)
+		if err != nil {
+			logger.Warnw("failed to load version information", "err", err, "repo", repoKey,
+				"version_type", versionType)
+		}
+		if err != xsql.ErrNotFound {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		value = ver.Value
 	}
 	var buf bytes.Buffer
 	color, ok := colors[strings.ToLower(versionType)]
@@ -215,7 +151,6 @@ func getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Cache-Control", "no-cache,max-age=0")
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.WriteHeader(http.StatusOK)

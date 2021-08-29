@@ -12,6 +12,7 @@
 .vscode
 data
 database
+*.sqlite
 
 # Unignore all dirs
 !*/

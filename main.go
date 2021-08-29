@@ -10,12 +10,19 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var version = "unknown"
+
 func main() {
 	initializeLogger()
 	app := &cli.App{
-		Name:   "vis",
-		Usage:  "",
-		Action: run,
+		Name:            "vis",
+		Usage:           "version inventory system",
+		Copyright:       "Loc Ngo <xuanloc0511@gmail.com>",
+		Description:     "",
+		Version:         version,
+		UsageText:       "vis [global options]",
+		HideHelpCommand: true,
+		Action:          run,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "tls.enabled",
@@ -48,10 +55,16 @@ func main() {
 				EnvVars: []string{"VIS_TLS_KEY"},
 			},
 			&cli.StringFlag{
-				Name:    "data",
-				Usage:   "specify data directory",
-				Value:   "/data",
-				EnvVars: []string{"VIS_DATA"},
+				Name:    "db.driver",
+				Usage:   "specify database driver",
+				Value:   "sqlite",
+				EnvVars: []string{"VIS_DB_DRIVER"},
+			},
+			&cli.StringFlag{
+				Name:    "db.dsn",
+				Usage:   "specify database data source",
+				Value:   "data/vis.sqlite",
+				EnvVars: []string{"VIS_DB_DSN"},
 			},
 		},
 	}
@@ -64,12 +77,12 @@ func main() {
 }
 
 func run(ctx *cli.Context) (err error) {
-	err = initializeDatabase(ctx.String("data"))
+	err = initializeDatabase(ctx.Context, ctx.String("db.driver"), ctx.String("db.dsn"))
 	if err != nil {
 		logger.Fatalw("failed to init database", "err", err)
 	}
 	defer func() {
-		closeDb()
+		_ = closeDb()
 	}()
 
 	r := httprouter.New()

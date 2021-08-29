@@ -1,0 +1,37 @@
+---
+kind: pipeline
+type: docker
+name: default
+
+trigger:
+  ref:
+    - refs/heads/main
+  event:
+    - push
+    - pull_request
+    - promote
+    - custome
+
+steps:
+  - name: "build master and minion"
+    image: golang:1.17.0-alpine3.14
+    environment:
+      GOOS: linux
+      GOARCH: amd64
+      GO111MODULE: on
+      CGO_ENABLED: 0
+      VERSION: 1.0.0
+    commands:
+      - go test -cover -coverprofile=coverage.out ./...
+      - mkdir -p bin
+      - go build -ldflags="-s -w -X main.version=$VERSION" -o ./bin/vis .
+  - name: "build and publish minion docker image"
+    image: plugins/docker
+    settings:
+      dockerfile: Dockerfile
+      repo: xuanloc0511/drone-plugin-docker
+      tags: [ "1.0.0", "latest"]
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
