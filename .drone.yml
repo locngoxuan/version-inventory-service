@@ -10,7 +10,7 @@ trigger:
     - push
     - pull_request
     - promote
-    - custome
+    - custom
 
 steps:
   - name: "build master and minion"
