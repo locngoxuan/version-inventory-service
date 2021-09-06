@@ -27,6 +27,7 @@ steps:
       - go build -ldflags="-s -w -X main.version=$VERSION" -o ./bin/vis .
   - name: "build ui"
     image: node:lts-alpine3.14
+    context: "ui"
     commands:
       - yarn install
       - yarn build
