@@ -27,8 +27,8 @@ steps:
       - go build -ldflags="-s -w -X main.version=$VERSION" -o ./bin/vis .
   - name: "build ui"
     image: node:lts-alpine3.14
-    context: "ui"
     commands:
+      - cd ui
       - yarn install
       - yarn build
   - name: "build and publish minion docker image"
