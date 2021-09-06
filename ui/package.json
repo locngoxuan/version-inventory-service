@@ -1,0 +1,45 @@
+{
+  "name": "ui",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@primer/octicons-react": "^15.1.0",
+    "bootstrap": "^5.1.0",
+    "moment": "^2.29.1",
+    "react": "^17.0.2",
+    "react-bootstrap": "^2.0.0-beta.6",
+    "react-dom": "^17.0.2",
+    "react-moment": "^1.1.1",
+    "react-scripts": "^4.0.3"
+  },
+  "scripts": {
+    "start": "react-app-rewired start",
+    "build": "react-app-rewired build"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "homepage": "ui",
+  "proxy": "http://192.168.174.136:8080",
+  "devDependencies": {
+    "css-loader": "^0.28.7",
+    "customize-cra": "^1.0.0",
+    "http-proxy-middleware": "^2.0.1",
+    "react-app-rewired": "^2.1.8"
+  }
+}

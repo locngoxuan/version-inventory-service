@@ -24,6 +24,12 @@ func main() {
 		HideHelpCommand: true,
 		Action:          run,
 		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "www",
+				Usage:   "specify location of source of web",
+				Value:   "ui/build",
+				EnvVars: []string{"VIS_WWW"},
+			},
 			&cli.BoolFlag{
 				Name:    "tls.enabled",
 				Usage:   "enable https schema",
@@ -73,22 +79,25 @@ func main() {
 	if err != nil {
 		logger.Fatal(err)
 	}
-
 }
 
 func run(ctx *cli.Context) (err error) {
 	err = initializeDatabase(ctx.Context, ctx.String("db.driver"), ctx.String("db.dsn"))
 	if err != nil {
-		logger.Fatalw("failed to init database", "err", err)
+		return fmt.Errorf("failed to init database %v", err)
 	}
 	defer func() {
 		_ = closeDb()
 	}()
 
+	www := ctx.String("www")
+
 	r := httprouter.New()
 	r.GET("/api/v1/version", getVersion)
+	r.GET("/api/v1/repos", getAllRepos)
 	r.POST("/api/v1/version", updateVersion)
 	r.DELETE("/api/v1/version", rollbackVersion)
+	r.ServeFiles("/ui/*filepath", http.Dir(www))
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", ctx.Int("port.http")),
 		Handler: r,

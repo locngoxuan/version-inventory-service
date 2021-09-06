@@ -11,6 +11,17 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+type RepoStats struct {
+	Namespace       string    `column:"namespace" json:"namespace"`
+	RepoId          string    `column:"repo_id" json:"repo_id"`
+	CntRelease      int       `column:"cnt_release" json:"cnt_release"`
+	CntDevelopment  int       `column:"cnt_development" json:"cnt_development"`
+	CntNightly      int       `column:"cnt_nightly" json:"cnt_nightly"`
+	CntPatch        int       `column:"cnt_patch" json:"cnt_patch"`
+	LastUpdated     time.Time `column:"created" json:"last_update"`
+	LastDevelopment string    `column:"version_value" json:"last_development"`
+}
+
 type VersionEntity struct {
 	Id        string    `column:"id"`
 	Namespace string    `column:"namespace"`
@@ -158,4 +169,31 @@ func changeStatusToCommitted(txId string) error {
 
 func closeDb() error {
 	return xsql.Close()
+}
+
+func findAllRepos() ([]RepoStats, error) {
+	var items []RepoStats
+	err := xsql.Query(xsql.NewStmt(`SELECT t1.namespace, t1.repo_id,`).
+		AppendSql(`t2.cnt_development, t2.cnt_release, t2.cnt_patch, t2.cnt_nightly,`).
+		AppendSql(`t3.created, t3.version_value`).
+		AppendSql(`FROM (`).
+		AppendSql(`select distinct namespace, repo_id from versions`).
+		AppendSql(`) AS t1`).
+		AppendSql(`JOIN (`).
+		AppendSql(`select namespace, repo_id,
+		sum(case when version_type = 'development' then 1 else 0 end) as cnt_development,
+		sum(case when version_type = 'release' then 1 else 0 end) as cnt_release,
+		sum(case when version_type = 'patch' then 1 else 0 end) as cnt_patch,
+		sum(case when version_type = 'nightly' then 1 else 0 end) as cnt_nightly
+	from versions v
+	group by namespace, repo_id`).
+		AppendSql(`) AS t2 ON t1.namespace = t2.namespace AND t1.repo_id = t2.repo_id`).
+		AppendSql(`JOIN (`).
+		AppendSql(`select distinct on (namespace, repo_id) namespace, repo_id, version_value, created
+		from versions
+		order by namespace, repo_id, id desc`).
+		AppendSql(`) AS t3 ON t1.namespace = t3.namespace AND t1.repo_id = t3.repo_id`).
+		Get(),
+		&items)
+	return items, err
 }

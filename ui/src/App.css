@@ -1,0 +1,52 @@
+.latest-infor {
+  font-family: "Tahoma";
+  font-size: 0.8rem;
+  color: #353535;
+}
+
+.latest-infor .right {
+  text-align: right;
+}
+
+.view-detail {
+  width: 1.2rem;
+  height: 1.2rem;
+  line-height: 0.6rem;
+  border-radius: 50%;
+  border: 2px solid #0a81ab;
+  background-color: #0a81ab;
+  color: #fff;
+}
+
+.number-circle {
+  border-radius: 50%;
+  width: 1.2rem;
+  max-width: 1.2rem;
+  height: 1.2rem;
+  max-height: 1.2rem;
+  padding: 4px;
+
+  background: #fff;
+  border: 2px solid #666;
+  color: #666;
+  text-align: center;
+  font: 1.1rem "Roboto", sans-serif;
+}
+
+.number {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.release {
+  color: #76a21e;
+}
+
+.patch {
+  color: #cd5555;
+}
+
+.statistic {
+  font-family: "Roboto";
+  font-size: 0.9rem;
+}

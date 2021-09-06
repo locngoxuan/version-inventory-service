@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/locngoxuan/xsql"
@@ -93,6 +94,7 @@ func updateVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) 
 		Type:      vtype,
 		Value:     strings.TrimSpace(request.Version),
 		Status:    statusCommitted,
+		Created:   time.Now(),
 	}
 	err = xsql.Insert(entity)
 	if err != nil {
@@ -108,6 +110,26 @@ var colors = map[string]string{
 	versionDevelopment: "#2e4ea2",
 	versionNightly:     "#8d4bae",
 	versionPatch:       "#b45853",
+}
+
+func getAllRepos(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	items, err := findAllRepos()
+	if err != nil {
+		logger.Errorw("failed to find all repo", "err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	data, err := json.Marshal(items)
+	if err != nil {
+		logger.Errorw("failed to marshal response", "err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache,max-age=0")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
